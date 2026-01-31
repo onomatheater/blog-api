@@ -84,7 +84,7 @@ class PostResponse(PostBase):
 
 
 class PostWithAuthor(PostResponse):
-    author_rel: UserResponse
+    author: UserResponse
 
 # ======================
 # СХЕМЫ ДЛЯ КОММЕНТАРИЕВ
@@ -111,9 +111,9 @@ class CommentResponse(CommentBase):
 
 class CommentWithAuthor(CommentResponse):
     """Комментарий с инфо об авторе"""
-    author_rel: UserResponse
+    author: UserResponse
 
 class PostWithComments(PostResponse):
     """Пост со всеми его комментариями и автором"""
-    author_rel: UserResponse
+    author: UserResponse
     comments: List[CommentWithAuthor]

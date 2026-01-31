@@ -3,11 +3,11 @@ API endpoints для публикаций
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.sql.functions import current_user
 
 from app.schemas import PostCreate, PostResponse, PostUpdate, PostWithComments, PostWithAuthor
-from app.models import Post, User
+from app.models import Post, User, Comment
 from app.utils.database import get_db
 from app.dependencies import get_current_user
 
@@ -71,7 +71,14 @@ async def get_post(
     Возвращает информацию о посте, об авторе, все комментарии с авторами комментариев
     """
 
-    post = db.query(Post).filter(Post.id == post_id).first()
+    post = db.query(Post)\
+        .options(
+        joinedload(Post.author),
+        joinedload(Post.comments).joinedload(Comment.author)
+    )\
+    .filter(Post.id == post_id)\
+    .first()
+
     if not post:
         raise HTTPException(
             status_code=404,
