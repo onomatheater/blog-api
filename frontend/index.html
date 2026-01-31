@@ -11,7 +11,7 @@
     <header>
         <div class="container">
             <div class="header-content">
-                <div class="logo">📝 Мой Блог</div>
+                <div class="logo">./quitePlace</div>
                 <div class="user-info">
                     <span class="user-name hidden" id="userName"></span>
                     <button class="btn btn-secondary hidden" id="logoutBtn">Выйти</button>
@@ -26,7 +26,7 @@
         <div class="alert alert-success" id="alertSuccess"></div>
 
         <!-- Auth Section -->
-        <div class="auth-section" id="authSection">
+        <div class="auth-section ascii-box" id="authSection">
             <div class="auth-tabs">
                 <button class="auth-tab active" data-tab="login">Вход</button>
                 <button class="auth-tab" data-tab="register">Регистрация</button>
@@ -67,7 +67,10 @@
         <div class="posts-section hidden" id="postsSection">
             <div class="posts-header">
                 <h2>Публикации</h2>
-                <button class="btn btn-primary" id="createPostBtn">+ Создать публикацию</button>
+                <!-- Кнопка создания поста в стиле неонового прямоугольника -->
+                <button class="btn btn-primary btn-ascii-outline" id="createPostBtn">
+                    + Создать публикацию
+                </button>
             </div>
             <div id="postsContainer"></div>
         </div>
@@ -75,7 +78,7 @@
 
     <!-- Create/Edit Post Modal -->
     <div class="modal" id="postModal">
-        <div class="modal-content">
+        <div class="modal-content ascii-box">
             <div class="modal-header">
                 <h3 id="postModalTitle">Создать публикацию</h3>
                 <button class="close-modal">&times;</button>
@@ -96,7 +99,7 @@
 
     <!-- Edit Comment Modal -->
     <div class="modal" id="commentModal">
-        <div class="modal-content">
+        <div class="modal-content ascii-box">
             <div class="modal-header">
                 <h3>Редактировать комментарий</h3>
                 <button class="close-modal">&times;</button>

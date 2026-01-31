@@ -8,16 +8,17 @@ let currentUser = null;
 let accessToken = null;
 let currentEditPost = null;
 let currentEditComment = null;
-let postsSortOrder = 'desc'; // По умолчанию сначала новые
-let commentsSortOrder = {}; // Порядок сортировки для каждого поста
+let postsSortOrder = 'desc';        // порядок постов
+let commentsSortOrder = {};         // порядок комментариев по postId
 
-// Initialize
+// Init
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     setupEventListeners();
 });
 
-// Check if user is logged in
+// ---------- Auth ----------
+
 function checkAuth() {
     accessToken = localStorage.getItem('accessToken');
     const username = localStorage.getItem('username');
@@ -25,15 +26,14 @@ function checkAuth() {
     if (accessToken && username) {
         currentUser = { username };
         showPostsSection();
-        loadPosts();
+        loadPosts(postsSortOrder);
     } else {
         showAuthSection();
     }
 }
 
-// Setup Event Listeners
 function setupEventListeners() {
-    // Auth tabs
+    // Вкладки авторизации
     document.querySelectorAll('.auth-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
@@ -50,7 +50,7 @@ function setupEventListeners() {
         });
     });
 
-    // Login form
+    // Логин
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('loginEmail').value;
@@ -58,7 +58,7 @@ function setupEventListeners() {
         await login(email, password);
     });
 
-    // Register form
+    // Регистрация
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const username = document.getElementById('registerUsername').value;
@@ -70,7 +70,7 @@ function setupEventListeners() {
     // Logout
     document.getElementById('logoutBtn').addEventListener('click', logout);
 
-    // Create post button
+    // Создать пост
     document.getElementById('createPostBtn').addEventListener('click', () => {
         currentEditPost = null;
         document.getElementById('postModalTitle').textContent = 'Создать публикацию';
@@ -79,7 +79,7 @@ function setupEventListeners() {
         openModal('postModal');
     });
 
-    // Post form
+    // Сохранение поста
     document.getElementById('postForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const title = document.getElementById('postTitle').value;
@@ -92,31 +92,45 @@ function setupEventListeners() {
         }
     });
 
-    // Comment form
+    // Сохранение отредактированного комментария
     document.getElementById('commentForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const content = document.getElementById('commentContent').value;
         await updateComment(currentEditComment.postId, currentEditComment.id, content);
     });
 
-    // Close modals
+    // Закрытие модалок
     document.querySelectorAll('.close-modal').forEach(btn => {
-        btn.addEventListener('click', () => {
-            closeAllModals();
+        btn.addEventListener('click', closeAllModals);
+    });
+
+    // Закрытие модалки по клику вне
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeAllModals();
         });
     });
 
-    // Close modal on outside click
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeAllModals();
-            }
-        });
+    // Делегирование для кнопок комментариев (редакт/удалить)
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('edit-comment-btn')) {
+            const postId = e.target.dataset.postId;
+            const commentId = e.target.dataset.commentId;
+            const content = e.target.dataset.content || '';
+
+            currentEditComment = { postId, id: commentId };
+            document.getElementById('commentContent').value = content;
+            openModal('commentModal');
+        }
+
+        if (e.target.classList.contains('delete-comment-btn')) {
+            const postId = e.target.dataset.postId;
+            const commentId = e.target.dataset.commentId;
+            deleteComment(postId, commentId);
+        }
     });
 }
 
-// API Functions
 async function register(username, email, password) {
     try {
         const response = await fetch(`${API_URL}/auth/register`, {
@@ -126,10 +140,11 @@ async function register(username, email, password) {
         });
 
         const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Ошибка регистрации');
 
-        if (!response.ok) {
-            throw new Error(data.detail || 'Ошибка регистрации');
-        }
+        // запомним ник для этого email
+        localStorage.setItem('lastRegisteredEmail', email);
+        localStorage.setItem('lastRegisteredUsername', username);
 
         showSuccess('Регистрация успешна! Теперь войдите в систему.');
         document.querySelector('[data-tab="login"]').click();
@@ -142,26 +157,30 @@ async function login(email, password) {
     try {
         const response = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
         });
 
         const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.detail || 'Ошибка входа');
-        }
+        if (!response.ok) throw new Error(data.detail || 'Ошибка входа');
 
         accessToken = data.access_token;
         localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('username', email);
 
-        currentUser = { username: email };
+        const lastEmail = localStorage.getItem('lastRegisteredEmail');
+        const lastUsername = localStorage.getItem('lastRegisteredUsername');
+
+        let nickname = email;
+        if (lastEmail && lastEmail === email && lastUsername) {
+            nickname = lastUsername;
+        }
+
+        localStorage.setItem('username', nickname);
+        currentUser = { username: nickname };
+
         showSuccess('Вход выполнен успешно!');
         showPostsSection();
-        loadPosts();
+        loadPosts(postsSortOrder);
     } catch (error) {
         showError(error.message);
     }
@@ -176,9 +195,11 @@ function logout() {
     showSuccess('Вы вышли из системы');
 }
 
-async function loadPosts() {
+// ---------- Posts & Comments API ----------
+
+async function loadPosts(sort = postsSortOrder) {
     try {
-        const response = await fetch(`${API_URL}/posts`, {
+        const response = await fetch(`${API_URL}/posts?sort=${sort}`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
@@ -194,7 +215,6 @@ async function loadPosts() {
     }
 }
 
-
 async function createPost(title, content) {
     try {
         const response = await fetch(`${API_URL}/posts`, {
@@ -203,7 +223,7 @@ async function createPost(title, content) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${accessToken}`
             },
-            body: JSON.stringify({ title, content, is_published: true })  // ✅ ДОБАВЛЕНО
+            body: JSON.stringify({ title, content, is_published: true })
         });
 
         if (!response.ok) {
@@ -213,12 +233,11 @@ async function createPost(title, content) {
 
         showSuccess('Публикация создана!');
         closeAllModals();
-        loadPosts();
+        loadPosts(postsSortOrder);
     } catch (error) {
         showError(error.message);
     }
 }
-
 
 async function updatePost(postId, title, content) {
     try {
@@ -231,22 +250,18 @@ async function updatePost(postId, title, content) {
             body: JSON.stringify({ title, content })
         });
 
-        if (!response.ok) {
-            throw new Error('Ошибка обновления публикации');
-        }
+        if (!response.ok) throw new Error('Ошибка обновления публикации');
 
         showSuccess('Публикация обновлена!');
         closeAllModals();
-        loadPosts();
+        loadPosts(postsSortOrder);
     } catch (error) {
         showError(error.message);
     }
 }
 
 async function deletePost(postId) {
-    if (!confirm('Вы уверены, что хотите удалить эту публикацию?')) {
-        return;
-    }
+    if (!confirm('Вы уверены, что хотите удалить эту публикацию?')) return;
 
     try {
         const response = await fetch(`${API_URL}/posts/${postId}`, {
@@ -254,29 +269,25 @@ async function deletePost(postId) {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
-        if (!response.ok) {
-            throw new Error('Ошибка удаления публикации');
-        }
+        if (!response.ok) throw new Error('Ошибка удаления публикации');
 
         showSuccess('Публикация удалена!');
-        loadPosts();
+        loadPosts(postsSortOrder);
     } catch (error) {
         showError(error.message);
     }
 }
 
-async function loadComments(postId) {
+async function loadComments(postId, sort = commentsSortOrder[postId] || 'desc') {
     try {
-        const response = await fetch(`${API_URL}/posts/${postId}/comments`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
-        });
+        const response = await fetch(
+            `${API_URL}/posts/${postId}/comments?sort=${sort}`,
+            { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
 
-        if (!response.ok) {
-            throw new Error('Ошибка загрузки комментариев');
-        }
+        if (!response.ok) throw new Error('Ошибка загрузки комментариев');
 
-        const comments = await response.json();
-        return comments;
+        return await response.json(); // уже отсортированы на сервере
     } catch (error) {
         showError(error.message);
         return [];
@@ -294,12 +305,10 @@ async function createComment(postId, content) {
             body: JSON.stringify({ content })
         });
 
-        if (!response.ok) {
-            throw new Error('Ошибка создания комментария');
-        }
+        if (!response.ok) throw new Error('Ошибка создания комментария');
 
         showSuccess('Комментарий добавлен!');
-        loadPosts();
+        loadPosts(postsSortOrder);
     } catch (error) {
         showError(error.message);
     }
@@ -316,22 +325,18 @@ async function updateComment(postId, commentId, content) {
             body: JSON.stringify({ content })
         });
 
-        if (!response.ok) {
-            throw new Error('Ошибка обновления комментария');
-        }
+        if (!response.ok) throw new Error('Ошибка обновления комментария');
 
         showSuccess('Комментарий обновлён!');
         closeAllModals();
-        loadPosts();
+        loadPosts(postsSortOrder);
     } catch (error) {
         showError(error.message);
     }
 }
 
 async function deleteComment(postId, commentId) {
-    if (!confirm('Вы уверены, что хотите удалить этот комментарий?')) {
-        return;
-    }
+    if (!confirm('Вы уверены, что хотите удалить этот комментарий?')) return;
 
     try {
         const response = await fetch(`${API_URL}/posts/${postId}/comments/${commentId}`, {
@@ -339,47 +344,81 @@ async function deleteComment(postId, commentId) {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
-        if (!response.ok) {
-            throw new Error('Ошибка удаления комментария');
-        }
+        if (!response.ok) throw new Error('Ошибка удаления комментария');
 
         showSuccess('Комментарий удалён!');
-        loadPosts();
+        loadPosts(postsSortOrder);
     } catch (error) {
         showError(error.message);
     }
 }
 
-// Display Functions
+// ---------- Rendering ----------
+
 async function displayPosts(posts) {
     const container = document.getElementById('postsContainer');
 
-    if (posts.length === 0) {
+    if (!posts || posts.length === 0) {
         container.innerHTML = '<p class="loading">Пока нет публикаций. Создайте первую!</p>';
         return;
     }
 
     container.innerHTML = '';
 
+    // Кнопка сортировки постов
+    const sortControlDiv = document.createElement('div');
+    sortControlDiv.style.marginBottom = '1rem';
+    sortControlDiv.style.display = 'flex';
+    sortControlDiv.style.justifyContent = 'flex-end';
+    sortControlDiv.innerHTML = `
+        <button class="btn btn-secondary btn-small" id="togglePostsSort">
+            ${postsSortOrder === 'desc' ? '⬇ Сначала новые' : '⬆ Сначала старые'}
+        </button>
+    `;
+    container.appendChild(sortControlDiv);
+
+    document.getElementById('togglePostsSort').addEventListener('click', () => {
+        postsSortOrder = postsSortOrder === 'desc' ? 'asc' : 'desc';
+        loadPosts(postsSortOrder);
+    });
+
     for (const post of posts) {
-        const comments = await loadComments(post.id);
+        if (!commentsSortOrder[post.id]) commentsSortOrder[post.id] = 'desc';
+        const comments = await loadComments(post.id, commentsSortOrder[post.id]);
         const postEl = createPostElement(post, comments);
         container.appendChild(postEl);
     }
+}
+
+// автор поста по схемам PostWithAuthor
+function getPostAuthor(post) {
+    if (post.author && post.author.username) return post.author.username;
+    if (post.author && post.author.email) return post.author.email;
+    return 'anon';
+}
+
+// автор комментария по схемам CommentWithAuthor
+function getCommentAuthor(comment) {
+    if (comment.author && comment.author.username) return comment.author.username;
+    if (comment.author && comment.author.email) return comment.author.email;
+    return 'anon';
 }
 
 function createPostElement(post, comments) {
     const postDiv = document.createElement('div');
     postDiv.className = 'post-card';
 
-    const isOwner = post.author_email === currentUser.username;
+    const author = getPostAuthor(post);
+    const isOwner = currentUser && author === currentUser.username;
+
+    const sortOrder = commentsSortOrder[post.id] || 'desc';
 
     postDiv.innerHTML = `
         <div class="post-header">
             <div>
                 <h3 class="post-title">${escapeHtml(post.title)}</h3>
                 <div class="post-meta">
-                    Автор: ${escapeHtml(post.author_email)} • ${formatDate(post.created_at)}
+                    Автор: ${escapeHtml(author)} • ${formatDate(post.created_at)}
                 </div>
             </div>
             ${isOwner ? `
@@ -390,20 +429,25 @@ function createPostElement(post, comments) {
             ` : ''}
         </div>
         <div class="post-content">${escapeHtml(post.content)}</div>
-        
         <div class="comments-section">
-            <div class="comments-header">Комментарии (${comments.length})</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                <div class="comments-header">Комментарии (${comments.length})</div>
+                ${comments.length > 0 ? `
+                    <button class="btn btn-secondary btn-small toggle-comments-sort" data-post-id="${post.id}">
+                        ${sortOrder === 'desc' ? '⬇ Сначала новые' : '⬆ Сначала старые'}
+                    </button>
+                ` : ''}
+            </div>
             <div class="comments-list" id="comments-${post.id}">
                 ${comments.map(c => createCommentHTML(post.id, c)).join('')}
             </div>
             <div class="comment-form">
                 <textarea class="comment-input" id="comment-input-${post.id}" placeholder="Добавить комментарий..." rows="2"></textarea>
-                <button class="btn btn-primary btn-small add-comment-btn" style="margin-top: 0.5rem;" data-post-id="${post.id}">Добавить комментарий</button>
+                <button class="btn btn-primary btn-small add-comment-btn" style="margin-top:0.5rem;" data-post-id="${post.id}">Добавить комментарий</button>
             </div>
         </div>
     `;
 
-    // Event listeners for post actions
     if (isOwner) {
         postDiv.querySelector('.edit-post-btn').addEventListener('click', () => {
             currentEditPost = post;
@@ -418,7 +462,6 @@ function createPostElement(post, comments) {
         });
     }
 
-    // Event listener for add comment
     postDiv.querySelector('.add-comment-btn').addEventListener('click', () => {
         const input = document.getElementById(`comment-input-${post.id}`);
         const content = input.value.trim();
@@ -428,29 +471,50 @@ function createPostElement(post, comments) {
         }
     });
 
+    const toggleBtn = postDiv.querySelector('.toggle-comments-sort');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', async () => {
+            commentsSortOrder[post.id] =
+                commentsSortOrder[post.id] === 'desc' ? 'asc' : 'desc';
+
+            const updatedComments = await loadComments(post.id, commentsSortOrder[post.id]);
+            const commentsContainer = document.getElementById(`comments-${post.id}`);
+
+            commentsContainer.innerHTML = updatedComments
+                .map(c => createCommentHTML(post.id, c))
+                .join('');
+
+            toggleBtn.textContent =
+                commentsSortOrder[post.id] === 'desc'
+                    ? '⬇ Сначала новые'
+                    : '⬆ Сначала старые';
+        });
+    }
+
     return postDiv;
 }
 
 function createCommentHTML(postId, comment) {
-    const isOwner = comment.author_email === currentUser.username;
+    const author = getCommentAuthor(comment);
+    const isOwner = currentUser && author === currentUser.username;
 
     return `
         <div class="comment">
             <div class="comment-header">
-                <span class="comment-author">${escapeHtml(comment.author_email)}</span>
+                <span class="comment-author">${escapeHtml(author)}</span>
                 <span class="post-meta">${formatDate(comment.created_at)}</span>
             </div>
             <div class="comment-content">${escapeHtml(comment.content)}</div>
             ${isOwner ? `
                 <div class="comment-actions">
-                    <button class="btn btn-secondary btn-small edit-comment-btn" 
-                            data-post-id="${postId}" 
-                            data-comment-id="${comment.id}" 
+                    <button class="btn btn-secondary btn-small edit-comment-btn"
+                            data-post-id="${postId}"
+                            data-comment-id="${comment.id}"
                             data-content="${escapeHtml(comment.content)}">
                         Редактировать
                     </button>
-                    <button class="btn btn-danger btn-small delete-comment-btn" 
-                            data-post-id="${postId}" 
+                    <button class="btn btn-danger btn-small delete-comment-btn"
+                            data-post-id="${postId}"
                             data-comment-id="${comment.id}">
                         Удалить
                     </button>
@@ -460,7 +524,8 @@ function createCommentHTML(postId, comment) {
     `;
 }
 
-// Utility Functions
+// ---------- UI helpers ----------
+
 function showAuthSection() {
     document.getElementById('authSection').classList.remove('hidden');
     document.getElementById('postsSection').classList.add('hidden');
@@ -501,12 +566,14 @@ function showSuccess(message) {
 }
 
 function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = String(text);
     return div.innerHTML;
 }
 
 function formatDate(dateString) {
+    if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('ru-RU', {
         year: 'numeric',
@@ -514,32 +581,5 @@ function formatDate(dateString) {
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
-    });
-}
-
-// Event delegation for dynamically created elements
-document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('edit-comment-btn')) {
-        const postId = e.target.dataset.postId;
-        const commentId = e.target.dataset.commentId;
-        const content = e.target.dataset.content;
-
-        currentEditComment = { postId, id: commentId };
-        document.getElementById('commentContent').value = content;
-        openModal('commentModal');
-    }
-
-    if (e.target.classList.contains('delete-comment-btn')) {
-        const postId = e.target.dataset.postId;
-        const commentId = e.target.dataset.commentId;
-        deleteComment(postId, commentId);
-    }
-});
-
-function sortItems(items, order) {
-    return items.sort((a, b) => {
-        const dateA = new Date(a.created_at);
-        const dateB = new Date(b.created_at);
-        return order === 'desc' ? dateB - dateA : dateA - dateB;
     });
 }
