@@ -26,10 +26,9 @@ class UserCreate(UserBase):
 
 class UserLogin(BaseModel):
     """
-    Схема для логина. Авторизация либо по e-mail, либо по username
+    Схема для логина. Авторизация по e-mail
     """
-    username: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: str
     password: str
 
 

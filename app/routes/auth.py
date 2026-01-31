@@ -13,7 +13,7 @@ from app.utils.security import hash_password, verify_password, create_access_tok
 
 # Router для всех auth-эндпоинтов
 router = APIRouter(
-    prefix="/api/auth",
+    prefix="/api/v1/auth",
     tags=["auth"],
     responses={400: {"description": "Bad Request"}},
 )
@@ -71,10 +71,7 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
     # Поиск пользователя по email или username
     db_user = None
 
-    if user.email:
-        db_user = db.query(User).filter(User.email == user.email).first()
-    elif user.username:
-        db_user = db.query(User).filter(User.username == user.username).first()
+    db_user = db.query(User).filter(User.email == user.email).first()
 
     # Если пользователь не найден
     if not db_user:

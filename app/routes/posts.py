@@ -5,18 +5,17 @@ API endpoints для публикаций
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.sql.functions import current_user
-
 from app.schemas import PostCreate, PostResponse, PostUpdate, PostWithComments, PostWithAuthor
 from app.models import Post, User, Comment
 from app.utils.database import get_db
 from app.dependencies import get_current_user
 
-router = APIRouter(prefix="/api/posts", tags=["posts"])
+router = APIRouter(prefix="/api/v1/posts", tags=["posts"])
 
 # =========================
 # СОЗДАНИЕ НОВОЙ ПУБЛИКАЦИИ
 # =========================
-@router.post("/", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
 async def create_post(
         post: PostCreate,
         current_user: User = Depends(get_current_user),
@@ -41,7 +40,7 @@ async def create_post(
 # ==========================
 # ПОЛУЧИТЬ СПИСОК ВСЕХ ПУБЛИКАЦИЙ
 # ==========================
-@router.get("/", response_model=list[PostWithAuthor])
+@router.get("", response_model=list[PostWithAuthor])
 async def list_posts(skip: int = 0,
                limit: int = 10,
                db: Session = Depends(get_db)

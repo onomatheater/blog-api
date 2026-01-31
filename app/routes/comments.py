@@ -14,9 +14,9 @@ from app.models import Comment, Post, User
 from app.utils.database import get_db
 from app.dependencies import get_current_user
 
-router = APIRouter(prefix="/api/comments", tags=["comments"])
+router = APIRouter(prefix="/api/v1/posts", tags=["comments"])
 
-@router.post("/posts/{post_id}", response_model=CommentWithAuthor, status_code=status.HTTP_201_CREATED)
+@router.post("/{post_id}/comments", response_model=CommentWithAuthor, status_code=status.HTTP_201_CREATED)
 async def create_comment(
         post_id: int,
         comment: CommentCreate,
@@ -48,7 +48,7 @@ async def create_comment(
 
     return db_comment
 
-@router.get("/posts/{post_id}", response_model=list[CommentWithAuthor])
+@router.get("/{post_id}/comments", response_model=list[CommentWithAuthor])
 async def list_comments(
         post_id: int,
         skip: int = 0,
@@ -76,7 +76,7 @@ async def list_comments(
 
     return comments
 
-@router.get("/{comment_id}", response_model=CommentWithAuthor)
+@router.get("/{post_id}/comments/{comment_id}", response_model=CommentWithAuthor)
 async def get_comment(
         comment_id: int,
         db: Session = Depends(get_db)
@@ -94,7 +94,7 @@ async def get_comment(
 
     return comment
 
-@router.put("/{comment_id}", response_model=CommentWithAuthor)
+@router.put("/{post_id}/comments/{comment_id}", response_model=CommentWithAuthor)
 async def update_comment(
         comment_id: int,
         comment: CommentUpdate,
@@ -126,7 +126,7 @@ async def update_comment(
 
     return db_comment
 
-@router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{post_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_comment(
         comment_id: int,
         current_user: User = Depends(get_current_user),

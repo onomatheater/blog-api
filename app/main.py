@@ -1,17 +1,18 @@
 """
-Docstring for app.main
-
 Главный файл приложения
 Здесь инициализируется FastAPI и подключаются маршруты
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.routes import posts, comments, auth
 from app.config import settings
 
 from dotenv import load_dotenv
 load_dotenv()
+
 # Создаем приложение
 app = FastAPI(
     title="Blog API",
@@ -25,44 +26,42 @@ app = FastAPI(
 # CORS (чтобы фронтенд мог обращаться к API)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.DEBUG else ["http://localhost:3000"],
+    allow_origins=["*"] if settings.DEBUG else ["http://localhost:3000"], # В продакшене указать конкретный домен
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     )
 
+
 # ==============
-# HEALTH-CHEKING
+# HEALTH-CHECKING
 # ==============
 
 @app.get("/health")
 async def health_check():
-    """Проверка что приложение живо"""
+    """Проверка, что приложение живо"""
     return {"status": "ok"}
-
-@app.get("/")
-async def root():
-    """ Главная страница API """
-    return {
-        "message": "Blog API is running",
-        "docs": f"{settings.API_PREFIX}/docs",
-        "redoc": f"{settings.API_PREFIX}/redoc",
-    }
-
 
 # =====================
 # Подключаем все ROUTES
 # =====================
 
-# Регистрация и авторизация
-app.include_router(auth.router)
+app.include_router(auth.router) # Регистрация и авторизация
+app.include_router(posts.router) # Посты
+app.include_router(comments.router) # Комментарии
 
-# Посты
-app.include_router(posts.router)
+# ==============================
+# Подключение FRONT-END
+# ==============================
 
-# Комментарии
-app.include_router(comments.router)
+# Главная страница
+@app.get("/")
+async def serve_frontend():
+    """Отдаем главную страницу фронтенда"""
+    return FileResponse("frontend/index.html")
 
+# Подключение статических файлов
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
