@@ -7,7 +7,7 @@ Docstring for app.main
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import posts, comments
+from app.routes import posts, comments, auth
 from app.config import settings
 
 # Создаем приложение

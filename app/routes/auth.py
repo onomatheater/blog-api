@@ -23,7 +23,7 @@ router = APIRouter(
 # РЕГИСТРАЦИЯ НОВОГО ПОЛЬЗОВАТЕЛЯ
 # ===============================
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     # Проверяем что email не занят
     db_user = db.query(User).filter(User.email == user.email).first()
@@ -71,7 +71,7 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
     # Поиск пользователя по email или username
     db_user = None
 
-    if user.mail:
+    if user.email:
         db_user = db.query(User).filter(User.email == user.mail).first()
     elif user.username:
         db_user = db.query(User).filter(User.username == user.username).first()
@@ -85,7 +85,7 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
         )
 
     # Проверка пароля
-    if not verify_password(user.password, db_user.password):
+    if not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(
             status_code=401,
             detail="Incorrect username or password",

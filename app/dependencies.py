@@ -5,7 +5,8 @@
 """
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.models import User
 from app.utils.database import get_db
@@ -14,7 +15,7 @@ from app.utils.security import decode_token
 security = HTTPBearer()
 
 async def get_current_user(
-        credentials: HTTPAuthCredentials = Depends(security),
+        credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db)
 ) -> User:
     """

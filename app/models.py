@@ -1,7 +1,8 @@
 # app/models.py
 
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Boolean
-from sqlalchemy.ext.declarative import declarative_base, relationship
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
 Base = declarative_base()
@@ -39,7 +40,7 @@ class Post(Base):
 
     # Relationships
     author = relationship("User", back_populates="posts")
-    comments = relationship("Comment", back_populates="posts", cascade="all, delete-orphan")
+    comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
 
 class Comment(Base):
     """
@@ -49,6 +50,7 @@ class Comment(Base):
     __tablename__ = "comments"
 
     id = Column(Integer, primary_key=True, index=True)
+    content = Column(Text, nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     post_id = Column(Integer, ForeignKey('posts.id'), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
