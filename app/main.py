@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes import posts, comments, auth
 from app.config import settings
 
+from dotenv import load_dotenv
+load_dotenv()
 # Создаем приложение
 app = FastAPI(
     title="Blog API",

@@ -136,6 +136,7 @@ async def update_post(
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(
         post_id: int,
+        current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
     """

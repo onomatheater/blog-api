@@ -38,10 +38,10 @@ class UserResponse(UserBase):
     Схема ответа с инфо о пользователе
     """
     id: int
-    create_at: datetime
+    created_at: datetime
 
     class Config:
-        from_attribute = True
+        from_attributes = True
 
 class TokenResponse(BaseModel):
     access_token: str

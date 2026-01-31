@@ -107,8 +107,8 @@ async def update_comment(
     Только для автора комментария.
     """
 
-    comment = db.query(Comment).filter(Comment.id == comment_id).first()
-    if not comment:
+    db_comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    if not db_comment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
 
     # Проверка на авторство комментария
@@ -119,14 +119,14 @@ async def update_comment(
         )
 
     # Обновляем комментарий
-    db_comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    db_comment.content = comment.content
 
     db.commit()
     db.refresh(db_comment)
 
     return db_comment
 
-@router.delete("/{comment_id}", response_model=CommentWithAuthor)
+@router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_comment(
         comment_id: int,
         current_user: User = Depends(get_current_user),
@@ -138,9 +138,9 @@ async def delete_comment(
     Проверка авторизации, поиск комментария, проверка на авторство.
     """
 
-    db.comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    db_comment = db.query(Comment).filter(Comment.id == comment_id).first()
 
-    if not db.comment:
+    if not db_comment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
 
     if db_comment.user_id != current_user.id:
