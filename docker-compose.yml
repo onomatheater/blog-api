@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # PostgreSQL база данных
+  db:
+    image: postgres:16-alpine
+    container_name: blog_db
+    environment:
+      POSTGRES_USER: blog_user
+      POSTGRES_PASSWORD: blog_password
+      POSTGRES_DB: blog_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis для кэширования
+  redis:
+    image: redis:7-alpine
+    container_name: blog_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Наше FastAPI приложение
+  api:
+    build: .
+    container_name: blog_api
+    environment:
+      DATABASE_URL: postgresql://blog_user:blog_password@db:5432/blog_db
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-only-for-testing
+      DEBUG: "True"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Adminer для управления БД (веб-интерфейс)
+  adminer:
+    image: adminer:latest
+    container_name: blog_adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
