@@ -61,7 +61,7 @@ docker-compose --version
 
 ```bash
 # Клонируйте репозиторий
-git clone <ваш-репозиторий-url>
+git clone https://github.com/onomatheater/blog-api.git
 cd blog-api
 
 # Или создайте структуру вручную
