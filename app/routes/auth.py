@@ -72,7 +72,7 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
     db_user = None
 
     if user.email:
-        db_user = db.query(User).filter(User.email == user.mail).first()
+        db_user = db.query(User).filter(User.email == user.email).first()
     elif user.username:
         db_user = db.query(User).filter(User.username == user.username).first()
 
