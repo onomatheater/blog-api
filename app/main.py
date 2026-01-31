@@ -7,7 +7,7 @@ Docstring for app.main
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import posts
+from app.routes import posts, comments
 from app.config import settings
 
 # Создаем приложение
@@ -29,24 +29,37 @@ app.add_middleware(
     allow_headers=["*"],
     )
 
-# Тестовый endpoint
+# ==============
+# HEALTH-CHEKING
+# ==============
+
 @app.get("/health")
 async def health_check():
     """Проверка что приложение живо"""
     return {"status": "ok"}
 
-# Подключить маршруты ниже
+@app.get("/")
+async def root():
+    """ Главная страница API """
+    return {
+        "message": "Blog API is running",
+        "docs": f"{settings.API_PREFIX}/docs",
+        "redoc": f"{settings.API_PREFIX}/redoc",
+    }
 
+
+# =====================
+# Подключаем все ROUTES
+# =====================
+
+# Регистрация и авторизация
+app.include_router(auth.router)
+
+# Посты
 app.include_router(posts.router)
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
-
-@app.get("/")
-def root():
-    return {"message": "Blog API is running"}
-
+# Комментарии
+app.include_router(comments.router)
 
 
 if __name__ == "__main__":
