@@ -11,6 +11,21 @@ let currentEditComment = null;
 let postsSortOrder = 'desc';        // порядок постов
 let commentsSortOrder = {};         // порядок комментариев по postId
 
+function handleAuthError(response) {
+    if (response.status === 401) {
+        // токен истёк или стал невалидным
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('username');
+        accessToken = null;
+        currentUser = null;
+
+        showError('Сессия истекла. Пожалуйста, войдите снова.');
+        showAuthSection();
+        return true;  // сигнал, что уже всё обработали
+    }
+    return false;
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
@@ -170,7 +185,10 @@ async function login(email, password) {
         const lastEmail = localStorage.getItem('lastRegisteredEmail');
         const lastUsername = localStorage.getItem('lastRegisteredUsername');
 
-        let nickname = email;
+        // базовый ник — часть email до @
+        let nickname = email.includes('@') ? email.split('@')[0] : email;
+
+        // если при регистрации для этого email сохранён username — используем его
         if (lastEmail && lastEmail === email && lastUsername) {
             nickname = lastUsername;
         }
@@ -185,6 +203,7 @@ async function login(email, password) {
         showError(error.message);
     }
 }
+
 
 function logout() {
     localStorage.removeItem('accessToken');
@@ -272,11 +291,15 @@ async function deletePost(postId) {
         if (!response.ok) throw new Error('Ошибка удаления публикации');
 
         showSuccess('Публикация удалена!');
-        loadPosts(postsSortOrder);
+
+        // убрать карточку поста из DOM
+        const postCard = document.querySelector(`.post-card [data-id="${postId}"]`)?.closest('.post-card');
+        if (postCard) postCard.remove();
     } catch (error) {
         showError(error.message);
     }
 }
+
 
 async function loadComments(postId, sort = commentsSortOrder[postId] || 'desc') {
     try {
@@ -308,11 +331,12 @@ async function createComment(postId, content) {
         if (!response.ok) throw new Error('Ошибка создания комментария');
 
         showSuccess('Комментарий добавлен!');
-        loadPosts(postsSortOrder);
+        await refreshCommentsForPost(postId);
     } catch (error) {
         showError(error.message);
     }
 }
+
 
 async function updateComment(postId, commentId, content) {
     try {
@@ -329,11 +353,12 @@ async function updateComment(postId, commentId, content) {
 
         showSuccess('Комментарий обновлён!');
         closeAllModals();
-        loadPosts(postsSortOrder);
+        await refreshCommentsForPost(postId);
     } catch (error) {
         showError(error.message);
     }
 }
+
 
 async function deleteComment(postId, commentId) {
     if (!confirm('Вы уверены, что хотите удалить этот комментарий?')) return;
@@ -347,11 +372,23 @@ async function deleteComment(postId, commentId) {
         if (!response.ok) throw new Error('Ошибка удаления комментария');
 
         showSuccess('Комментарий удалён!');
-        loadPosts(postsSortOrder);
+        await refreshCommentsForPost(postId);
     } catch (error) {
         showError(error.message);
     }
 }
+
+
+async function refreshCommentsForPost(postId) {
+    const comments = await loadComments(postId, commentsSortOrder[postId] || 'desc');
+    const commentsContainer = document.getElementById(`comments-${postId}`);
+    if (commentsContainer) {
+        commentsContainer.innerHTML = comments
+            .map(c => createCommentHTML(postId, c))
+            .join('');
+    }
+}
+
 
 // ---------- Rendering ----------
 

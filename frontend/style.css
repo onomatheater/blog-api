@@ -14,6 +14,10 @@
     --color-success: #22c55e;
 }
 
+html {
+    scroll-behavior: smooth;
+}
+
 /* ---------- Базовая разметка ---------- */
 * {
     margin: 0;
@@ -130,14 +134,18 @@ header {
 }
 
 /* ---------- Блоки / карточки ---------- */
+
+
+
+
 .post-card,
-.auth-section,
 .modal-content {
     background: rgba(5, 10, 20, 0.95);
     border: 1px solid rgba(148, 163, 184, 0.3);
-    box-shadow: 0 0 12px rgba(0, 0, 0, 0.6); /* тёмная мягкая тень */
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
     border-radius: 0;
 }
+
 
 
 /* ASCII-рамка сверху/снизу для крупных блоков */
@@ -159,22 +167,25 @@ header {
 }
 
 .ascii-box::before {
-    content: "+----------------------------------------------+";
+    content: "+-------------------------------------------+";
     top: 0.3rem;
     left: 1rem;
 }
 
 .ascii-box::after {
-    content: "+----------------------------------------------+";
+    content: "+-------------------------------------------+";
     bottom: 0.3rem;
     left: 1rem;
 }
 
 /* ---------- Auth Section ---------- */
 .auth-section {
-    margin: 2rem auto;
-    max-width: 400px;
+    position: relative;
+    padding: 1.5rem 1.75rem 1.75rem;
+    margin: 0 auto;
+    max-width: 420px;
 }
+
 
 .auth-tabs {
     display: flex;
@@ -354,11 +365,55 @@ textarea:focus {
 }
 
 .modal-content {
-    padding: 2rem;
-    max-width: 600px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
+    position: relative;
+    background: rgba(5, 10, 20, 0.97);
+    border: 1px solid var(--accent);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.75);
+    padding: 2.4rem 2rem 2.6rem;
+    max-width: 720px;
+    width: 100%;
+}
+
+/* верхняя «линия» */
+.modal-content::before {
+    content: "";
+    position: absolute;
+    top: -14px;
+    left: 12px;
+    right: 12px;
+    height: 2px;
+    background-image: repeating-linear-gradient(
+        to right,
+        var(--accent),
+        var(--accent) 8px,
+        transparent 8px,
+        transparent 12px
+    );
+}
+
+/* нижняя «линия» */
+.modal-content::after {
+    content: "";
+    position: absolute;
+    bottom: -14px;
+    left: 12px;
+    right: 12px;
+    height: 2px;
+    background-image: repeating-linear-gradient(
+        to right,
+        var(--accent),
+        var(--accent) 8px,
+        transparent 8px,
+        transparent 12px
+    );
+}
+
+.modal-content .corner-plus {
+    position: absolute;
+    top: -20px;
+    left: 8px;
+    color: var(--accent);
+    font-weight: 500;
 }
 
 .modal-header {
@@ -382,12 +437,23 @@ textarea:focus {
 
 /* ---------- Alerts ---------- */
 .alert {
-    padding: 1rem;
+    position: fixed;              /* привязка к экрану */
+    top: 1.5rem;
+    right: 1.5rem;
+    z-index: 2000;
+
+    min-width: 260px;
+    max-width: 360px;
+
+    padding: 0.85rem 1rem;
     border-radius: 4px;
-    margin-bottom: 1rem;
-    display: none;
+    margin-bottom: 0;             /* больше не нужно */
+
     font-size: 0.85rem;
+    display: none;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
 }
+
 
 .alert.show {
     display: block;
