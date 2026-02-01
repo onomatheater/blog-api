@@ -162,7 +162,7 @@ docker-compose up --build
 
 ### Через Swagger UI
 
-1. Откройте http://localhost:8000/docs
+1. Откройте http://localhost:8000/api/v1/docs
 2. Разверните раздел **POST /api/v1/auth/register**
 3. Нажмите **"Try it out"**
 4. Введите данные и нажмите **"Execute"**
@@ -325,7 +325,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/register" \
     "email": "test@example.com",
     "password": "password123"
   }'
-```
+
 
 
 ### 2. Вход (получение токена)
@@ -338,11 +338,15 @@ curl -X POST "http://localhost:8000/api/v1/auth/login" \
 
 **Сохраните токен из ответа!**
 
+```bash
+TOKEN="ВАШ_ТОКЕН_ИЗ_ОТВЕТА"
+```
+
 ### 3. Создание публикации
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/posts" \
-  -H "Authorization: Bearer ВАШ_ТОКЕН_ЗДЕСЬ" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Моя первая публикация",
@@ -355,7 +359,7 @@ curl -X POST "http://localhost:8000/api/v1/posts" \
 
 ```bash
 curl -X GET "http://localhost:8000/api/v1/posts" \
-  -H "Authorization: Bearer ВАШ_ТОКЕН_ЗДЕСЬ"
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 
@@ -363,7 +367,7 @@ curl -X GET "http://localhost:8000/api/v1/posts" \
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/posts/1/comments" \
-  -H "Authorization: Bearer ВАШ_ТОКЕН_ЗДЕСЬ" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "content": "Отличная публикация!"
