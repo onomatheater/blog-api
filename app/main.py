@@ -42,6 +42,8 @@ async def health_check():
     """Проверка, что приложение живо"""
     return {"status": "ok"}
 
+#
+
 # =====================
 # Подключаем все ROUTES
 # =====================
@@ -61,7 +63,12 @@ async def serve_frontend():
     return FileResponse("frontend/index.html")
 
 # Подключение статических файлов
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+app.mount(
+    "/",
+    StaticFiles(directory="frontend", html=True),
+    name="frontend"
+)
+
 
 if __name__ == "__main__":
     import uvicorn
