@@ -13,6 +13,16 @@ from app.config import settings
 from dotenv import load_dotenv
 load_dotenv()
 
+# Подключаем кэширование
+from contextlib import asynccontextmanager
+from app.services.cache import cache
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await cache.connect()
+    yield
+    await cache.close()
+
 # Создаем приложение
 app = FastAPI(
     title="Blog API",
@@ -21,6 +31,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_PREFIX}/openapi.json",
     docs_url=f"{settings.API_PREFIX}/docs",
     redoc_url=f"{settings.API_PREFIX}/redoc",
+    lifespan=lifespan, # Redis
 )
 
 # CORS (чтобы фронтенд мог обращаться к API)

@@ -16,11 +16,23 @@ from app.schemas import CommentCreate, CommentResponse, CommentUpdate, CommentWi
 from app.models import Comment, Post, User
 from app.utils.database import get_db
 from app.dependencies import get_current_user
-
+from app.services.cache import cache
 router = APIRouter(prefix="/api/v1/posts", tags=["comments"])
 
+COMMENTS_CACHE_KEY = "comments"
 
-@router.post("/{post_id}/comments", response_model=CommentWithAuthor, status_code=status.HTTP_201_CREATED)
+async def invalidate_comments_cache(
+        post_id: int,
+):
+    # чистим обе сортировки
+    await cache.delete(f"{COMMENTS_CACHE_KEY}:{post_id}:sort=desc")
+    await cache.delete(f"{COMMENTS_CACHE_KEY}:{post_id}:sort=asc")
+
+@router.post(
+    "/{post_id}/comments",
+    response_model=CommentWithAuthor,
+    status_code=status.HTTP_201_CREATED
+)
 async def create_comment(
     post_id: int,
     comment: CommentCreate,
@@ -47,6 +59,8 @@ async def create_comment(
     db.commit()
     db.refresh(db_comment)
 
+    await invalidate_comments_cache(post_id)
+
     return db_comment
 
 
@@ -68,6 +82,14 @@ async def list_comments(
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
 
+    use_cache = skip == 0 and limit == 50
+    cache_key = f"{COMMENTS_CACHE_KEY}:{post_id}:sort={sort}"
+
+    if use_cache:
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return cached
+
     query = (
         db.query(Comment)
         .options(joinedload(Comment.author))
@@ -80,6 +102,17 @@ async def list_comments(
         query = query.order_by(desc(Comment.created_at))
 
     comments = query.offset(skip).limit(limit).all()
+
+    if use_cache:
+        data = [
+            CommentWithAuthor.model_validate(
+                c, from_attributes=True
+            ).model_dump()
+            for c in comments
+        ]
+        await cache.set(cache_key, data, ttl=300)
+        return data
+
     return comments
 
 
@@ -104,6 +137,7 @@ async def get_comment(
 
 @router.put("/{post_id}/comments/{comment_id}", response_model=CommentWithAuthor)
 async def update_comment(
+    post_id: int,
     comment_id: int,
     comment: CommentUpdate,
     current_user: User = Depends(get_current_user),
@@ -130,11 +164,14 @@ async def update_comment(
     db.commit()
     db.refresh(db_comment)
 
+    await invalidate_comments_cache(post_id)
+
     return db_comment
 
 
 @router.delete("/{post_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_comment(
+    post_id: int,
     comment_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -158,5 +195,7 @@ async def delete_comment(
 
     db.delete(db_comment)
     db.commit()
+
+    await invalidate_comments_cache(post_id)
 
     return None
