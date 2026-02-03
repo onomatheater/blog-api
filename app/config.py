@@ -4,7 +4,7 @@ Docstring for app.config
 Конфигурация приложения.
 Всё берется из .env файла.
 """
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # Pydantic Settings конфиг
@@ -29,11 +29,6 @@ class Settings(BaseSettings):
     # Server
     DEBUG: bool = False
     API_PREFIX: str = "/api"
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"
 
 # Создаем глобальный объект settings
 settings = Settings()
