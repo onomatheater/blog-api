@@ -5,10 +5,8 @@ services:
   db:
     image: postgres:16-alpine
     container_name: blog_db
-    environment:
-      POSTGRES_USER: blog_user
-      POSTGRES_PASSWORD: blog_password
-      POSTGRES_DB: blog_db
+    env_file:
+      - .env
     ports:
       - "5432:5432"
     volumes:
