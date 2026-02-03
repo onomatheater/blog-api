@@ -118,6 +118,7 @@ async def list_comments(
 
 @router.get("/{post_id}/comments/{comment_id}", response_model=CommentWithAuthor)
 async def get_comment(
+    post_id: int,
     comment_id: int,
     db: Session = Depends(get_db),
 ):
@@ -127,7 +128,10 @@ async def get_comment(
     Не требует авторизации.
     """
 
-    comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    comment = db.query(Comment).filter(
+        Comment.id == comment_id,
+        Comment.post_id == post_id,
+    ).first()
 
     if not comment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
