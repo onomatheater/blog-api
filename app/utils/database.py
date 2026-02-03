@@ -1,11 +1,9 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import os
+from app.config import settings
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://blog_user:blog_password@db:5432/blog_db"
-)
+DATABASE_URL = settings.DATABASE_URL
 
 engine = create_engine(
     DATABASE_URL,

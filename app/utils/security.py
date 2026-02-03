@@ -10,7 +10,7 @@ import jwt
 from passlib.context import CryptContext
 from app.config import settings
 
-# Контекст bcrypt алогритм
+# Контекст bcrypt алгоритм
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # =============================
