@@ -35,11 +35,8 @@ services:
   api:
     build: .
     container_name: blog_api
-    environment:
-      DATABASE_URL: postgresql://blog_user:blog_password@db:5432/blog_db
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: dev-secret-key-only-for-testing
-      DEBUG: "True"
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     depends_on:

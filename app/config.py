@@ -7,6 +7,14 @@ Docstring for app.config
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
+    # Pydantic Settings конфиг
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
     # Database
     DATABASE_URL: str
 
