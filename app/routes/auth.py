@@ -82,6 +82,10 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
         )
 
     # Проверка пароля
+
+    #DEBUG_TEMP
+    print("LOGIN DEBUG:", user.email, user.password, db_user.hashed_password)
+
     if not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(
             status_code=401,
