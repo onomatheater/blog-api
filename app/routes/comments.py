@@ -153,9 +153,15 @@ async def update_comment(
     Только для автора комментария.
     """
 
-    db_comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    db_comment = db.query(Comment).filter(
+        Comment.id == comment_id,
+        Comment.post_id == post_id,
+    ).first()
     if not db_comment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment not found"
+        )
 
     if db_comment.user_id != current_user.id:
         raise HTTPException(
@@ -186,10 +192,16 @@ async def delete_comment(
     Только автор комментария.
     """
 
-    db_comment = db.query(Comment).filter(Comment.id == comment_id).first()
+    db_comment = db.query(Comment).filter(
+        Comment.id == comment_id,
+        Comment.post_id == post_id,
+    ).first()
 
     if not db_comment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment not found"
+        )
 
     if db_comment.user_id != current_user.id:
         raise HTTPException(
