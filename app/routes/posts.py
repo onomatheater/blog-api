@@ -172,7 +172,7 @@ async def update_post(
             detail="Not enough permissions",
         )
 
-    update_data = post_update.dict(exclude_unset=True)
+    update_data = post_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_post, key, value)
 
