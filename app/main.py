@@ -56,6 +56,7 @@ from app.utils.limiter import limiter
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
+
 # (Временно) обработчик ошибок превышения лимита. Позже - добавить в exceptions.py
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
