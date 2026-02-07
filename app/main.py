@@ -43,6 +43,21 @@ app.add_middleware(
     allow_headers=["*"],
     )
 
+# =============================
+# Ограничитель частоты запросов
+# =============================
+
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
+from app.utils.limiter import limiter
+
+# регистрируем middleware
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+# (Временно) обработчик ошибок превышения лимита. Позже - добавить в exceptions.py
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ==============
 # HEALTH-CHECKING
