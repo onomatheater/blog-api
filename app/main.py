@@ -10,6 +10,8 @@ from fastapi.responses import FileResponse
 from app.routes import posts, comments, auth
 from app.config import settings
 
+
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -34,6 +36,23 @@ app = FastAPI(
     lifespan=lifespan, # Redis
 )
 
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.utils.exceptions import (
+    app_error_handler,
+    http_exception_handler,
+    validation_exception_handler,
+    unhandled_exception_handler,
+    AppError,
+)
+
+app.add_exception_handler(AppError, app_error_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
+
+
 # CORS (чтобы фронтенд мог обращаться к API)
 app.add_middleware(
     CORSMiddleware,
@@ -53,7 +72,6 @@ async def health_check():
     """Проверка, что приложение живо"""
     return {"status": "ok"}
 
-#
 
 # =====================
 # Подключаем все ROUTES
