@@ -4,12 +4,14 @@
 API endpoints для регистрации и авторизации.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.schemas import UserCreate, UserLogin, UserResponse, TokenResponse
 from app.models import User
 from app.utils.database import get_db
 from app.utils.security import hash_password, verify_password, create_access_token
+from app.utils.limiter import limiter
+from app.config import settings
 
 # Router для всех auth-эндпоинтов
 router = APIRouter(
@@ -54,14 +56,12 @@ def validate_password_strength(password: str) -> None:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit(settings.REGISTER_RATE_LIMIT)
 def register_user(
         user: UserCreate,
-        db: Session = Depends(get_db),
+        request: Request,
+        db: Session = Depends(get_db)
 ):
-
-    # Проверяем сложность пароля
-    validate_password_strength(user.password)
-
     # Проверяем что email не занят
     db_user = db.query(User).filter(User.email == user.email).first()
     if db_user:
@@ -102,7 +102,12 @@ def register_user(
 # ==============================
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
-def login_user(user: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit(settings.LOGIN_RATE_LIMIT)
+def login_user(
+        user: UserLogin,
+        request: Request,
+        db: Session = Depends(get_db)
+):
     """Логин пользователя"""
 
     # Поиск пользователя по email или username
