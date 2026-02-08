@@ -11,6 +11,8 @@ from app.models import User
 from app.utils.database import get_db
 from app.utils.security import hash_password, verify_password, create_access_token
 from app.utils.limiter import limiter
+from app.config import settings
+
 # Router для всех auth-эндпоинтов
 router = APIRouter(
     prefix="/api/v1/auth",
@@ -54,7 +56,7 @@ def validate_password_strength(password: str) -> None:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-@limiter.limit("5/minute")
+@limiter.limit(settings.REGISTER_RATE_LIMIT)
 def register_user(
         user: UserCreate,
         request: Request,
@@ -100,7 +102,7 @@ def register_user(
 # ==============================
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
-@limiter.limit("10/minute")
+@limiter.limit(settings.LOGIN_RATE_LIMIT)
 def login_user(
         user: UserLogin,
         request: Request,

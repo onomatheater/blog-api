@@ -7,23 +7,31 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from dotenv import load_dotenv
+load_dotenv()
+
 from app.routes import posts, comments, auth
 from app.config import settings
 
 
 
-from dotenv import load_dotenv
-load_dotenv()
+
+
 
 # Подключаем кэширование
-from contextlib import asynccontextmanager
 from app.services.cache import cache
+from contextlib import asynccontextmanager
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await cache.connect()
     yield
     await cache.close()
+
 
 # Создаем приложение
 app = FastAPI(
@@ -36,8 +44,11 @@ app = FastAPI(
     lifespan=lifespan, # Redis
 )
 
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
+
+
+
+
+# Подключаем хендлеры
 
 from app.utils.exceptions import (
     app_error_handler,
@@ -45,13 +56,27 @@ from app.utils.exceptions import (
     validation_exception_handler,
     unhandled_exception_handler,
     AppError,
+    rate_limit_exceeded_handler,
 )
+
+# Глобальные обработчики ошибок
 
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
+# =============================
+# Ограничитель частоты запросов
+# =============================
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
+from app.utils.limiter import limiter
+
+
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # CORS (чтобы фронтенд мог обращаться к API)
 app.add_middleware(
@@ -62,22 +87,6 @@ app.add_middleware(
     allow_headers=["*"],
     )
 
-# =============================
-# Ограничитель частоты запросов
-# =============================
-
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.middleware import SlowAPIMiddleware
-from slowapi.errors import RateLimitExceeded
-from app.utils.limiter import limiter
-
-# регистрируем middleware
-app.state.limiter = limiter
-app.add_middleware(SlowAPIMiddleware)
-
-
-# (Временно) обработчик ошибок превышения лимита. Позже - добавить в exceptions.py
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ==============
 # HEALTH-CHECKING

@@ -30,5 +30,9 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     API_PREFIX: str = "/api"
 
+    # RATE-LIMITS
+    REGISTER_RATE_LIMIT: str = "5/minute" # Значения по-умолчанию, на случай
+    LOGIN_RATE_LIMIT: str = "10/minute"   # если в .env не указаны иные значения
+
 # Создаем глобальный объект settings
 settings = Settings()

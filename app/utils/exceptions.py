@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from slowapi.errors import RateLimitExceeded
 '''
 Вспомогательная функция _error_response()
 
@@ -100,5 +101,16 @@ async def unhandled_exception_handler(
         status_code=500,
         detail="Internal server error",
         code="internal_server_error",
+        request=request,
+    )
+
+async def rate_limit_exceeded_handler(
+    request: Request,
+    exc: RateLimitExceeded,
+):
+    return _error_response(
+        status_code=429,
+        detail="Too many requests, please try again later.",
+        code="rate_limit_exceeded",
         request=request,
     )
