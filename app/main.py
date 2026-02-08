@@ -13,7 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.routes import posts, comments, auth
+from app.routes import posts, comments, auth, users
 from app.config import settings
 
 
@@ -105,7 +105,7 @@ async def health_check():
 app.include_router(auth.router) # Регистрация и авторизация
 app.include_router(posts.router) # Посты
 app.include_router(comments.router) # Комментарии
-
+app.include_router(users.router) # Пользователь
 # ==============================
 # Подключение FRONT-END
 # ==============================
