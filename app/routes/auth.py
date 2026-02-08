@@ -23,6 +23,36 @@ router = APIRouter(
 # РЕГИСТРАЦИЯ НОВОГО ПОЛЬЗОВАТЕЛЯ
 # ===============================
 
+# Вспомогательная функция проверки пароля
+def validate_password_strength(password: str) -> None:
+    """
+    Проверяет базовую сложность пароля.
+
+    Условия:
+    - длина не меньше 8 символов;
+    - минимум одна буква;
+    - минимум одна цифра;
+    """
+
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters"
+        )
+
+    if not any(ch.isalpha() for ch in password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one letter",
+        )
+
+    if not any(ch.isdigit() for ch in password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one digit",
+        )
+
+
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 def register_user(
