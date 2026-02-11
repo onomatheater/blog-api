@@ -4,7 +4,7 @@ API endpoints для публикаций
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
-from typing import Literal
+from typing import Literal, Optional
 from sqlalchemy import asc, desc
 
 from app.schemas import (
@@ -69,6 +69,7 @@ async def list_posts(
     skip: int = 0,
     limit: int = 10,
     sort: Literal["asc", "desc"] = "desc",
+    is_published: Optional[bool] = None,
     db: Session = Depends(get_db),
 ):
     """
@@ -79,7 +80,7 @@ async def list_posts(
     """
 
     # Кэшируем только "главную" ленту
-    use_cache = skip == 0 and limit == 10 and sort == "desc"
+    use_cache = skip == 0 and limit == 10 and sort == "desc" and is_published is None
 
     if use_cache:
         cached = await cache.get(POSTS_CACHE_KEY)
@@ -88,6 +89,9 @@ async def list_posts(
 
 
     query = db.query(Post).options(joinedload(Post.author))
+
+    if is_published is not None:
+        query = query.filter(Post.is_published == is_published)
 
     if sort == "asc":
         query = query.order_by(asc(Post.created_at))
