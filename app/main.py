@@ -3,11 +3,12 @@
 Здесь инициализируется FastAPI и подключаются маршруты
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
+
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from dotenv import load_dotenv
@@ -15,8 +16,10 @@ load_dotenv()
 
 from app.routes import posts, comments, auth, users
 from app.config import settings
+from app.utils.database import get_db
 
-
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 
 
@@ -97,6 +100,38 @@ async def health_check():
     """Проверка, что приложение живо"""
     return {"status": "ok"}
 
+@app.get("/health/extended")
+async def health_check_extended(
+        db: Session = Depends(get_db)
+):
+    """
+    Расширенный health-check:
+    - приложение
+    - PostgreSQL
+    -  Redis
+    """
+    status = {
+        "app": "ok",
+        "db": "unavailable",
+        "redis": "unavailable",
+    }
+
+    # Проверка PosgreSQL
+    try:
+        db.execute(text("SELECT 1"))
+        status["db"] = "ok"
+    except Exception:
+        status["db"] = "unavailable"
+
+    # Проверка Redis
+    try:
+        is_redis_ok = await cache.ping()
+        status["redis"] = "ok" if is_redis_ok else "unavailable"
+    except Exception:
+        status["redis"] = "unavailable"
+
+    http_status = 200 if all(v == "ok" for v in status.values()) else 503
+    return JSONResponse(status_code=http_status, content=status)
 
 # =====================
 # Подключаем все ROUTES
