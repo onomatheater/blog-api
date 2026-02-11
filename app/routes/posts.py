@@ -4,7 +4,7 @@ API endpoints для публикаций
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
-from typing import Literal
+from typing import Literal, Optional
 from sqlalchemy import asc, desc
 
 from app.schemas import (
@@ -16,7 +16,7 @@ from app.schemas import (
 )
 from app.models import Post, User, Comment
 from app.utils.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_user_optional
 
 from app.services.cache import cache
 
@@ -69,7 +69,9 @@ async def list_posts(
     skip: int = 0,
     limit: int = 10,
     sort: Literal["asc", "desc"] = "desc",
+    is_published: Optional[bool] = None,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Получаем список всех постов.
@@ -78,8 +80,14 @@ async def list_posts(
     Возвращает посты со своими авторами, отсортированные по created_at.
     """
 
-    # Кэшируем только "главную" ленту
-    use_cache = skip == 0 and limit == 10 and sort == "desc"
+    # Кэшируем только "главную" ленту без фильтра и авторизации
+    use_cache = (
+            skip == 0
+            and limit == 10
+            and sort == "desc"
+            and is_published is None
+            and current_user is None
+    )
 
     if use_cache:
         cached = await cache.get(POSTS_CACHE_KEY)
@@ -88,6 +96,31 @@ async def list_posts(
 
 
     query = db.query(Post).options(joinedload(Post.author))
+
+    if is_published is False:
+        if current_user is None:
+            # Неавторизованный запрос с is_published=false:
+            # можно либо игнорировать параметр, либо явно возвращать только опубликованные.
+            query = query.filter(Post.is_published == True)
+        else:
+            # Авторизованный: только свои черновики
+            query = query.filter(
+                Post.is_published == False,
+                Post.user_id == current_user.id,
+            )
+    elif is_published is True:
+        # Явный запрос только опубликованных
+        query = query.filter(Post.is_published == True)
+    else:
+        # is_published не указан
+        if current_user is None:
+            # Аноним: только опубликованные
+            query = query.filter(Post.is_published == True)
+        else:
+            # Авторизованный: опубликованные + свои черновики
+            query = query.filter(
+                (Post.is_published == True) | (Post.user_id == current_user.id)
+            )
 
     if sort == "asc":
         query = query.order_by(asc(Post.created_at))
