@@ -97,15 +97,27 @@ async def list_posts(
 
     query = db.query(Post).options(joinedload(Post.author))
 
-    if is_published is not None:
-        # указываем фильтр
-        query = query.filter(Post.is_published == is_published)
-    else:
+    if is_published is False:
         if current_user is None:
-            # Неавторизованный пользователь: видит ТОЛЬКО ОПУБЛИКОВАННЫЕ
+            # Неавторизованный запрос с is_published=false:
+            # можно либо игнорировать параметр, либо явно возвращать только опубликованные.
             query = query.filter(Post.is_published == True)
         else:
-            # Авторизованный пользователь: свои + чужие ТОЛЬКО ОПУБЛИКОВАННЫЕ
+            # Авторизованный: только свои черновики
+            query = query.filter(
+                Post.is_published == False,
+                Post.user_id == current_user.id,
+            )
+    elif is_published is True:
+        # Явный запрос только опубликованных
+        query = query.filter(Post.is_published == True)
+    else:
+        # is_published не указан
+        if current_user is None:
+            # Аноним: только опубликованные
+            query = query.filter(Post.is_published == True)
+        else:
+            # Авторизованный: опубликованные + свои черновики
             query = query.filter(
                 (Post.is_published == True) | (Post.user_id == current_user.id)
             )

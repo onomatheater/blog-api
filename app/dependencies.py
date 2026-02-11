@@ -13,7 +13,7 @@ from app.utils.database import get_db
 from app.utils.security import decode_token
 from typing import Optional
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
         credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -30,6 +30,13 @@ async def get_current_user(
 
     # Декодируем
     payload = decode_token(token)
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     # Если токен невалиден или истек
     if payload is None:
