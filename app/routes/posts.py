@@ -16,7 +16,7 @@ from app.schemas import (
 )
 from app.models import Post, User, Comment
 from app.utils.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_user_optional
 
 from app.services.cache import cache
 
@@ -71,6 +71,7 @@ async def list_posts(
     sort: Literal["asc", "desc"] = "desc",
     is_published: Optional[bool] = None,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Получаем список всех постов.
@@ -79,8 +80,14 @@ async def list_posts(
     Возвращает посты со своими авторами, отсортированные по created_at.
     """
 
-    # Кэшируем только "главную" ленту
-    use_cache = skip == 0 and limit == 10 and sort == "desc" and is_published is None
+    # Кэшируем только "главную" ленту без фильтра и авторизации
+    use_cache = (
+            skip == 0
+            and limit == 10
+            and sort == "desc"
+            and is_published is None
+            and current_user is None
+    )
 
     if use_cache:
         cached = await cache.get(POSTS_CACHE_KEY)
@@ -91,7 +98,17 @@ async def list_posts(
     query = db.query(Post).options(joinedload(Post.author))
 
     if is_published is not None:
+        # указываем фильтр
         query = query.filter(Post.is_published == is_published)
+    else:
+        if current_user is None:
+            # Неавторизованный пользователь: видит ТОЛЬКО ОПУБЛИКОВАННЫЕ
+            query = query.filter(Post.is_published == True)
+        else:
+            # Авторизованный пользователь: свои + чужие ТОЛЬКО ОПУБЛИКОВАННЫЕ
+            query = query.filter(
+                (Post.is_published == True) | (Post.user_id == current_user.id)
+            )
 
     if sort == "asc":
         query = query.order_by(asc(Post.created_at))

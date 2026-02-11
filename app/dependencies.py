@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models import User
 from app.utils.database import get_db
 from app.utils.security import decode_token
+from typing import Optional
 
 security = HTTPBearer()
 
@@ -57,4 +58,29 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    return user
+
+async def get_current_user_optional(
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+        db: Session = Depends(get_db),
+) -> Optional[User]:
+    """
+    Необязательный текущий пользователь.
+
+    Если токена нет или он невалиден - возвращаем None,
+    иначе - объект User.
+    """
+    if credentials is None:
+        return None
+
+    token = credentials.credentials
+    payload = decode_token(token)
+    if payload is None:
+        return None
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        return None
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
     return user
