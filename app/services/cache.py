@@ -46,4 +46,17 @@ class RedisCache:
             return
         await self._client.delete(key)
 
+    async def ping(self) -> bool:
+        """
+        Простейшая проверка доступности Redis
+        Возвращает True, если пинг прошел, иначе False.
+        """
+        if self._client is None:
+            return False
+        try:
+            await self._client.ping()
+            return True
+        except Exception:
+            return False
+
 cache = RedisCache(settings.REDIS_URL)
