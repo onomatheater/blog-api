@@ -10,6 +10,8 @@ import jwt
 from passlib.context import CryptContext
 from app.config import settings
 
+from uuid import uuid4
+
 # Контекст bcrypt алгоритм
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -33,12 +35,46 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
     # Определяем время истечения токена
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
 
     # Добавляем в токен время истечения
-    to_encode.update({"exp": expire})
+    to_encode.update({
+        "exp": expire,
+        "token_type": "access",
+    })
+
+    # Кодируем в JWT
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
+    )
+    return encoded_jwt
+
+
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+
+    # Определяем время истечения токена
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
+
+    jti = str(uuid4())
+
+    # Добавляем в токен время истечения
+    to_encode.update({
+        "exp": expire,
+        "token_type": "refresh",
+        "jti": jti
+    })
 
     # Кодируем в JWT
     encoded_jwt = jwt.encode(
@@ -48,6 +84,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     )
 
     return encoded_jwt
+
+
 
 def decode_token(token: str) -> Optional[dict]:
     """

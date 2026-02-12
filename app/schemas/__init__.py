@@ -44,8 +44,14 @@ class UserResponse(UserBase):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
 
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str
+
+class TokenLogoutRequest(BaseModel):
+    refresh_token: str
 
 # ====================
 # СХЕМЫ ДЛЯ ПУБЛИКАЦИИ
