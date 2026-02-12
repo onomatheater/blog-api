@@ -21,6 +21,7 @@ from app.dependencies import get_current_user, get_current_user_optional
 from app.services.cache import cache
 
 POSTS_CACHE_KEY = "posts:list:main"
+SEARCH_CACHE_PREFIX = "posts:search:"
 
 router = APIRouter(prefix="/api/v1/posts", tags=["posts"])
 
@@ -70,6 +71,7 @@ async def list_posts(
     limit: int = 10,
     sort: Literal["asc", "desc"] = "desc",
     is_published: Optional[bool] = None,
+    q: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -87,7 +89,16 @@ async def list_posts(
             and sort == "desc"
             and is_published is None
             and current_user is None
+            and q is None
     )
+
+    search_cache_key = None
+    # Кэшируем только публичный поиск по умолчанию
+    if q and skip == 0 and limit == 10 and sort == "desc" and current_user is None:
+        search_cache_key = f"{SEARCH_CACHE_PREFIX}:q={q}"
+        cached_search = await cache.get(search_cache_key)
+        if cached_search is not None:
+            return cached_search
 
     if use_cache:
         cached = await cache.get(POSTS_CACHE_KEY)
@@ -122,6 +133,14 @@ async def list_posts(
                 (Post.is_published == True) | (Post.user_id == current_user.id)
             )
 
+    if q:
+        if len(q) < 3 :
+            return []
+        pattern = f"%{q}%"
+        query = query.filter(
+            (Post.title.ilike(pattern)) | (Post.content.ilike(pattern))
+        )
+
     if sort == "asc":
         query = query.order_by(asc(Post.created_at))
     else:
@@ -132,6 +151,11 @@ async def list_posts(
     if use_cache:
         data = [PostWithAuthor.model_validate(p).model_dump() for p in posts]
         await cache.set(POSTS_CACHE_KEY, data, ttl=300)
+        return data
+
+    if search_cache_key:
+        data = [PostWithAuthor.model_validate(p).model_dump() for p in posts]
+        await cache.set(search_cache_key, data, ttl=300)
         return data
 
     return posts
