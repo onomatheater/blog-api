@@ -20,7 +20,7 @@ class RedisCache:
 
     async def close(self):
         if self._client is not None:
-            await self._client.close()
+            await self._client.aclose()
             self._client = None
 
     async def get(self, key: str) -> Optional[Any]:
