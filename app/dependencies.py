@@ -25,18 +25,20 @@ async def get_current_user(
     Извлекаем Bearer токен из заголовка Authorization, декодируем токен,
     из токена берем user_id, ищем пользователя в БД и возвращаем объект User
     """
-    # Извлекаем токен
-    token = credentials.credentials
-
-    # Декодируем
-    payload = decode_token(token)
-
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+    # Извлекаем токен
+    token = credentials.credentials
+
+    # Декодируем
+    payload = decode_token(token)
+
 
     # Если токен невалиден или истек
     if payload is None:

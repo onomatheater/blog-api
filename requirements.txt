@@ -11,7 +11,7 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 redis==5.2.1
 email-validator==2.1.0
-bcrypt==4.1.1
+bcrypt==4.0.1
 pyjwt==2.9.0
 python-dotenv
 slowapi==0.1.9
