@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from app.schemas import (
     UserCreate,
     UserLogin,
-    UserResponse,
     TokenResponse,
     TokenRefreshRequest,
     TokenLogoutRequest,
@@ -19,19 +18,16 @@ from app.schemas import (
 
 from app.models import User
 from app.utils.database import get_db
-
-from app.utils.security import (
-    hash_password,
-    verify_password,
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-)
+from app.utils.security import decode_token, create_access_token
 from app.services.auth_tokens import (
-    store_refresh_token,
     is_refresh_token_active,
     revoke_refresh_token,
 )
+from app.services.auth_service import (
+    register_user_in_db,
+    authenticate_user,
+)
+
 
 from app.utils.limiter import limiter
 from app.config import settings
@@ -85,52 +81,18 @@ async def register_user(
         request: Request,
         db: Session = Depends(get_db)
 ):
+    # Валидация силы пароля остаётся в роуте
+    validate_password_strength(user.password)
 
-    # Проверяем что email не занят
-    db_user = db.query(User).filter(User.email == user.email).first()
-    if db_user:
+    result = await register_user_in_db(db=db, user_in=user)
+    if result is None:
+        # Не различаем email/username и внутренние ошибки токенов — для простоты
         raise HTTPException(
             status_code=400,
-            detail="Email already registered"
+            detail="Email or username already registered",
         )
 
-    # Проверяем что username не занят
-    db_user = db.query(User).filter(User.username == user.username).first()
-    if db_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Username already registered"
-        )
-
-    # Хэшируем пароль
-    hashed_password = hash_password(user.password)
-
-    # Создаем новый объект User в БД
-    db_user = User(
-        email=user.email,
-        username=user.username,
-        hashed_password=hashed_password
-    )
-
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-
-    access_token = create_access_token(data={"sub": str(db_user.id)})
-    refresh_token = create_refresh_token(data={"sub": str(db_user.id)})
-
-    payload = decode_token(refresh_token)
-    if payload is None or payload.get("token_type") != "refresh":
-        raise HTTPException(status_code=500, detail="Invalid refresh token payload")
-
-    jti = payload.get("jti")
-    await store_refresh_token(jti, db_user.id)
-
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+    return result
 
 
 # ==============================
@@ -146,32 +108,16 @@ async def login_user(
 ):
     """Логин пользователя"""
 
-    # Поиск пользователя по email или username
-    db_user = db.query(User).filter(User.email == user.email).first()
+    result = await authenticate_user(db=db, creds=user)
 
-    # Если пользователь не найден или неверный пароль
-    if not db_user or not verify_password(user.password, db_user.hashed_password):
+    if result is None:
         raise HTTPException(
             status_code=401,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token = create_access_token(data={"sub": str(db_user.id)})
-    refresh_token   = create_refresh_token(data={"sub": str(db_user.id)})
-
-    payload = decode_token(refresh_token)
-    if payload is None or payload.get("token_type") != "refresh":
-        raise HTTPException(status_code=500, detail="Invalid refresh token payload")
-
-    jti = payload.get("jti")
-    await store_refresh_token(jti, db_user.id)
-
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+    return result
 
 # ================
 # REFRESH ENDPOINT
