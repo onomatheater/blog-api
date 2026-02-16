@@ -17,6 +17,16 @@ from app.models import Comment, Post, User
 from app.utils.database import get_db
 from app.dependencies import get_current_user
 from app.services.cache import cache
+from app.services.comment_service import (
+    get_post_by_id,
+    create_comment_for_post,
+    list_comments_for_post,
+    get_comment_for_post,
+    update_comment_for_user,
+    delete_comment_for_user,
+)
+
+
 router = APIRouter(prefix="/api/v1/posts", tags=["comments"])
 
 COMMENTS_CACHE_KEY = "comments"
@@ -45,19 +55,16 @@ async def create_comment(
     Только для авторизованных пользователей.
     """
 
-    post = db.query(Post).filter(Post.id == post_id).first()
+    post = await get_post_by_id(db=db, post_id=post_id)
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
 
-    db_comment = Comment(
-        content=comment.content,
-        user_id=current_user.id,
-        post_id=post.id,
+    db_comment = await create_comment_for_post(
+        db=db,
+        post=post,
+        author=current_user,
+        comment_in=comment,
     )
-
-    db.add(db_comment)
-    db.commit()
-    db.refresh(db_comment)
 
     await invalidate_comments_cache(post_id)
 
@@ -78,7 +85,7 @@ async def list_comments(
     Не требует авторизации.
     """
 
-    post = db.query(Post).filter(Post.id == post_id).first()
+    post = await get_post_by_id(db=db, post_id=post_id)
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
 
@@ -90,30 +97,28 @@ async def list_comments(
         if cached is not None:
             return cached
 
-    query = (
-        db.query(Comment)
-        .options(joinedload(Comment.author))
-        .filter(Comment.post_id == post_id)
-    )
+    # базовый список из сервиса
+    comments = await list_comments_for_post(db=db, post_id=post_id)
 
+    # сортировка и пагинация остаются в роуте (это уже HTTP-уровень)
     if sort == "asc":
-        query = query.order_by(asc(Comment.created_at))
+        comments.sort(key=lambda c: c.created_at)
     else:
-        query = query.order_by(desc(Comment.created_at))
+        comments.sort(key=lambda c: c.created_at, reverse=True)
 
-    comments = query.offset(skip).limit(limit).all()
+    comments_slice = comments[skip: skip + limit]
 
     if use_cache:
         data = [
             CommentWithAuthor.model_validate(
                 c, from_attributes=True
             ).model_dump()
-            for c in comments
+            for c in comments_slice
         ]
         await cache.set(cache_key, data, ttl=300)
         return data
 
-    return comments
+    return comments_slice
 
 
 @router.get("/{post_id}/comments/{comment_id}", response_model=CommentWithAuthor)
@@ -128,14 +133,16 @@ async def get_comment(
     Не требует авторизации.
     """
 
-    comment = db.query(Comment).filter(
-        Comment.id == comment_id,
-        Comment.post_id == post_id,
-    ).first()
-
+    comment = await get_comment_for_post(
+        db=db,
+        post_id=post_id,
+        comment_id=comment_id
+    )
     if not comment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
-
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment not found"
+        )
     return comment
 
 
@@ -153,30 +160,28 @@ async def update_comment(
     Только для автора комментария.
     """
 
-    db_comment = db.query(Comment).filter(
-        Comment.id == comment_id,
-        Comment.post_id == post_id,
-    ).first()
-    if not db_comment:
+    result = await update_comment_for_user(
+        db=db,
+        post_id=post_id,
+        comment_id=comment_id,
+        comment_update=comment,
+        current_user=current_user,
+    )
+
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Comment not found"
+            detail="Comment not found",
         )
 
-    if db_comment.user_id != current_user.id:
+    if result is False:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not allowed to update this comment",
         )
 
-    db_comment.content = comment.content
-
-    db.commit()
-    db.refresh(db_comment)
-
     await invalidate_comments_cache(post_id)
-
-    return db_comment
+    return result
 
 
 @router.delete("/{post_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -192,26 +197,24 @@ async def delete_comment(
     Только автор комментария.
     """
 
-    db_comment = db.query(Comment).filter(
-        Comment.id == comment_id,
-        Comment.post_id == post_id,
-    ).first()
+    result = await delete_comment_for_user(
+        db=db,
+        post_id=post_id,
+        comment_id=comment_id,
+        current_user=current_user,
+    )
 
-    if not db_comment:
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Comment not found"
+            detail="Comment not found",
         )
 
-    if db_comment.user_id != current_user.id:
+    if result is False:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not allowed to delete this comment",
         )
 
-    db.delete(db_comment)
-    db.commit()
-
     await invalidate_comments_cache(post_id)
-
     return None

@@ -1,11 +1,14 @@
+# app/routes/posts.py
+
 """
 API endpoints для публикаций
+
+Роуты тонкие: только валидация и вызов сервисного слоя.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from typing import Literal, Optional
-from sqlalchemy import asc, desc
 
 from app.schemas import (
     PostCreate,
@@ -14,19 +17,19 @@ from app.schemas import (
     PostWithComments,
     PostWithAuthor,
 )
-from app.models import Post, User, Comment
+from app.models import User
 from app.utils.database import get_db
 from app.dependencies import get_current_user, get_current_user_optional
 
-from app.services.cache import cache
-
-POSTS_CACHE_KEY = "posts:list:main"
-SEARCH_CACHE_PREFIX = "posts:search:"
+from app.services.post_services import (
+    create_post_for_user,
+    list_posts_with_filters,
+    get_post_with_comments,
+    update_post_for_user,
+    delete_post_for_user,
+)
 
 router = APIRouter(prefix="/api/v1/posts", tags=["posts"])
-
-
-
 
 
 # =========================
@@ -42,23 +45,8 @@ async def create_post(
     """
     Создание публикации с привязкой к текущему пользователю.
     """
-
-    db_post = Post(
-        title=post.title,
-        content=post.content,
-        is_published=post.is_published,
-        user_id=current_user.id,
-    )
-
-    db.add(db_post)
-    db.commit()
-    db.refresh(db_post)
-
-    await cache.delete(POSTS_CACHE_KEY)
-
+    db_post = await create_post_for_user(db=db, author=current_user, post_in=post)
     return db_post
-
-
 
 
 # ==========================
@@ -76,91 +64,17 @@ async def list_posts(
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
-    Получаем список всех постов.
-
-    Не требует авторизации.
-    Возвращает посты со своими авторами, отсортированные по created_at.
+    Список постов с фильтрами, поиском и кэшированием.
     """
-
-    # Кэшируем только "главную" ленту без фильтра и авторизации
-    use_cache = (
-            skip == 0
-            and limit == 10
-            and sort == "desc"
-            and is_published is None
-            and current_user is None
-            and q is None
+    return await list_posts_with_filters(
+        db=db,
+        skip=skip,
+        limit=limit,
+        sort=sort,
+        is_published=is_published,
+        q=q,
+        current_user=current_user,
     )
-
-    search_cache_key = None
-    # Кэшируем только публичный поиск по умолчанию
-    if q and skip == 0 and limit == 10 and sort == "desc" and current_user is None:
-        search_cache_key = f"{SEARCH_CACHE_PREFIX}:q={q}"
-        cached_search = await cache.get(search_cache_key)
-        if cached_search is not None:
-            return cached_search
-
-    if use_cache:
-        cached = await cache.get(POSTS_CACHE_KEY)
-        if cached is not None:
-            return cached
-
-
-    query = db.query(Post).options(joinedload(Post.author))
-
-    if is_published is False:
-        if current_user is None:
-            # Неавторизованный запрос с is_published=false:
-            # можно либо игнорировать параметр, либо явно возвращать только опубликованные.
-            query = query.filter(Post.is_published == True)
-        else:
-            # Авторизованный: только свои черновики
-            query = query.filter(
-                Post.is_published == False,
-                Post.user_id == current_user.id,
-            )
-    elif is_published is True:
-        # Явный запрос только опубликованных
-        query = query.filter(Post.is_published == True)
-    else:
-        # is_published не указан
-        if current_user is None:
-            # Аноним: только опубликованные
-            query = query.filter(Post.is_published == True)
-        else:
-            # Авторизованный: опубликованные + свои черновики
-            query = query.filter(
-                (Post.is_published == True) | (Post.user_id == current_user.id)
-            )
-
-    if q:
-        if len(q) < 3 :
-            return []
-        pattern = f"%{q}%"
-        query = query.filter(
-            (Post.title.ilike(pattern)) | (Post.content.ilike(pattern))
-        )
-
-    if sort == "asc":
-        query = query.order_by(asc(Post.created_at))
-    else:
-        query = query.order_by(desc(Post.created_at))
-
-    posts = query.offset(skip).limit(limit).all()
-
-    if use_cache:
-        data = [PostWithAuthor.model_validate(p).model_dump() for p in posts]
-        await cache.set(POSTS_CACHE_KEY, data, ttl=300)
-        return data
-
-    if search_cache_key:
-        data = [PostWithAuthor.model_validate(p).model_dump() for p in posts]
-        await cache.set(search_cache_key, data, ttl=300)
-        return data
-
-    return posts
-
-
 
 
 # ==========================================
@@ -173,31 +87,15 @@ async def get_post(
     db: Session = Depends(get_db),
 ):
     """
-    Получаем полный пост со всеми комментариями.
-
-    Не требует авторизации.
-    Возвращает информацию о посте, об авторе, все комментарии с авторами комментариев.
+    Полный пост с автором и комментариями.
     """
-
-    post = (
-        db.query(Post)
-        .options(
-            joinedload(Post.author),
-            joinedload(Post.comments).joinedload(Comment.author),
-        )
-        .filter(Post.id == post_id)
-        .first()
-    )
-
+    post = await get_post_with_comments(db=db, post_id=post_id)
     if not post:
         raise HTTPException(
             status_code=404,
             detail="Post not found",
         )
-
     return post
-
-
 
 
 # =====================================
@@ -212,35 +110,28 @@ async def update_post(
     db: Session = Depends(get_db),
 ):
     """
-    Обновление (редактирование) поста.
+    Обновление поста, доступно только автору.
     """
+    result = await update_post_for_user(
+        db=db,
+        post_id=post_id,
+        post_update=post_update,
+        current_user=current_user,
+    )
 
-    db_post = db.query(Post).filter(Post.id == post_id).first()
-
-    if not db_post:
+    if result is None:
         raise HTTPException(
             status_code=404,
             detail="Post not found",
         )
 
-    if db_post.user_id != current_user.id:
+    if result is False:
         raise HTTPException(
             status_code=403,
             detail="Not enough permissions",
         )
 
-    update_data = post_update.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_post, key, value)
-
-    db.commit()
-    db.refresh(db_post)
-
-    await cache.delete(POSTS_CACHE_KEY)
-
-    return db_post
-
-
+    return result
 
 
 # ==================
@@ -254,26 +145,24 @@ async def delete_post(
     db: Session = Depends(get_db),
 ):
     """
-    Удаление поста.
+    Удаление поста, доступно только автору.
     """
+    result = await delete_post_for_user(
+        db=db,
+        post_id=post_id,
+        current_user=current_user,
+    )
 
-    db_post = db.query(Post).filter(Post.id == post_id).first()
-
-    if not db_post:
+    if result is None:
         raise HTTPException(
             status_code=404,
             detail="Post not found",
         )
 
-    if db_post.user_id != current_user.id:
+    if result is False:
         raise HTTPException(
             status_code=403,
             detail="Not enough permissions",
         )
-
-    db.delete(db_post)
-    db.commit()
-
-    await cache.delete(POSTS_CACHE_KEY)
 
     return None
